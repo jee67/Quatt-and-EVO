@@ -25,6 +25,14 @@ description: >-
 
   wait_evo is used to avoid all automations to call the evohome service at the
   same time, since this might block the service.
+
+  Additional things to be changed for your configuration 
+
+  - sensor.10_061315_ch_setpoint, which is my ramses controller ch setpoint 
+
+  - climate.ne18, which is my Evohome controller
+  
+
 triggers:
   - trigger: time_pattern
     minutes: /15
