@@ -90,7 +90,6 @@ actions:
     variables:
       climatezone: climate.{{evozone}}
       climatezone_r: climate.{{ramseszone}}
-      start_time: input_datetime.{{evozone}}_start_time
       manual_time: input_datetime.{{evozone}}_manual_time
       manual_until: >-
         {{ today_at(strptime(states(manual_time), "%Y-%m-%d
