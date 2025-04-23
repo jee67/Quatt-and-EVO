@@ -95,10 +95,6 @@ actions:
         {% else %}
           {{ lastrun_b}}
         {% endif %}
-      perc: >-
-        {{states('sensor.jk_current_percentage_of_highest_electricity_price_today')
-        | float(100)}}
-      pric: "{{ states('sensor.jk_current_electricity_market_price') | float(100) }}"
       ch_temp: "{{ states('sensor.10_061315_ch_setpoint') | float(50)}}"
       outdoor_temp: >-
         {{ states('sensor.weather_station_buitenmodule_temperatuur') | float(20)
