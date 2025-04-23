@@ -1,5 +1,6 @@
 # AIO energiemanagement
 # more info on https://github.com/kotope/aio_energy_management
+# this code needs to be included in configuration.yaml
 # change the nordpool_entity to your sensor
 aio_energy_management:
       - nordpool_entity: sensor.nordpool_kwh_nl_eur_3_10_021
