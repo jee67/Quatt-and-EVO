@@ -1,0 +1,254 @@
+alias: CE0.1a woonkamer EVOhome verhoging
+description: >-
+  max_temp is the temperature to reach, the automation will raise the
+  temperature by variable delta degrees (depending on the specific zone, delta
+  could be higher than 0.1) every 15 minutes (this depends on the first trigger
+  and can be set faster or slower by changing the value in the  trigger) until
+  max_temp is reached."
+     
+  max_temp is set according a schedule, there's a week (sp_week) and weekend
+  (sp_wknd) schedule. you can use as many setpoint as you like, but  they should
+  increase in time and when you set to many, the evohome service might be
+  blocked. "
+
+
+  The automation will not run if the zone is set to a Permanent temperature. The
+  automation will run between firstrun and lastrun, where firstrun is set in the
+  configuratio variables. 
+
+
+  lastrun can also be set in the configuration variables via lastrun_b. This is
+  overidden by manual_time if applicable. It's best to set lastrun after an
+  Evohome setpoint where the temperature will not be raised again (lower
+  setpoints have no effect)."
+
+
+  wait_evo is used to avoid all automations to call the evohome service at the
+  same time, since this might block the service.
+triggers:
+  - trigger: time_pattern
+    minutes: /15
+  - trigger: state
+    entity_id:
+      - input_number.woonkamer_temp_manual
+  - trigger: state
+    entity_id:
+      - climate.woonkamer
+    attribute: preset_mode
+    from: permanent
+  - trigger: homeassistant
+    event: start
+conditions: []
+actions:
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 10
+      milliseconds: 0
+    enabled: true
+  - alias: Configuration variables
+    variables:
+      evozone: woonkamer
+      ramseszone: "01_033496_00"
+      max_temp_start: 19.5
+      sp_week:
+        - - "09:00"
+          - 20
+        - - "11:00"
+          - 20.7
+        - - "16:00"
+          - 20.7
+        - - "20:00"
+          - 20.8
+        - - "22:30"
+          - 19.5
+      sp_wknd:
+        - - "09:00"
+          - 20
+        - - "10:30"
+          - 20.5
+        - - "12:00"
+          - 20.7
+        - - "17:00"
+          - 20.7
+        - - "20:00"
+          - 20.8
+        - - "23:30"
+          - 19.5
+      firstrun: "04:00"
+      lastrun_b: "{{ '22:35' if now().weekday() in (0,1,2,3,6)  else '23:35' }}"
+      wait_evo: 0
+  - alias: General variables (better not change)
+    variables:
+      climatezone: climate.{{evozone}}
+      climatezone_r: climate.{{ramseszone}}
+      start_time: input_datetime.{{evozone}}_start_time
+      manual_time: input_datetime.{{evozone}}_manual_time
+      manual_until: >-
+        {{ today_at(strptime(states(manual_time), "%Y-%m-%d
+        %H:%M:%S").strftime("%H:%M")) }}
+      manual_temp: input_number.{{evozone}}_temp_manual
+      lastrun: >-
+        {% if states(manual_temp) | float != 5 and ( today_at(lastrun_b) |
+        as_timestamp < manual_until | as_timestamp)%}
+          {{ (strptime(states(manual_time), "%Y-%m-%d %H:%M:%S").strftime("%H:%M")) }}
+        {% else %}
+          {{ lastrun_b}}
+        {% endif %}
+      perc: >-
+        {{states('sensor.jk_current_percentage_of_highest_electricity_price_today')
+        | float(100)}}
+      pric: "{{ states('sensor.jk_current_electricity_market_price') | float(100) }}"
+      ch_temp: "{{ states('sensor.10_061315_ch_setpoint') | float(50)}}"
+      outdoor_temp: >-
+        {{ states('sensor.weather_station_buitenmodule_temperatuur') | float(20)
+        }}
+      hp_lage_kst: "{{states('binary_sensor.heatpump_lage_kosten')}}"
+      max_temp: >-
+        {% if now().weekday() in (5,6)%}
+          {% set sp = sp_wknd %}
+        {% else %}
+          {% set sp = sp_week %}    
+        {% endif%}  
+
+        {% set ns = namespace(value=max_temp_start) %} 
+
+        {% for row in sp %}
+           {% if now() > today_at(row[0]) %}
+              {% set ns.value = row[1] | float %}
+           {%  endif %}
+        {% endfor %}
+
+        {% if (now() | as_timestamp < manual_until | as_timestamp ) and
+        (states(manual_temp) | float(0) > 5) %}
+          {% set temp_to_use = states(manual_temp) | float(19.5)  %}
+        {% else %}
+          {% set temp_to_use = ns.value | float %}
+        {% endif%} 
+
+        {{ temp_to_use if (hp_lage_kst == "off" or ch_temp > 45 or outdoor_temp
+        > 20) else (temp_to_use + 1.0)}}  
+      current_temp: |-
+        {% if (states('climate.ne18') == 'unavailable') %}
+          {{ state_attr(climatezone_r, 'temperature') | float(0) }}
+        {% else %}
+          {{ state_attr(climatezone, 'temperature') | float(0) }}
+        {% endif %} 
+      actual_temp: |-
+        {% if (states('climate.ne18') == 'unavailable') %}
+          {{ state_attr(climatezone_r, 'current_temperature') | float(0) }}
+        {% else %}
+          {{state_attr(climatezone, 'current_temperature') | float(0) }}
+        {% endif %} 
+      current_temp_r: "{{ state_attr(climatezone_r, 'temperature') | float(0) }}"
+      actual_temp_r: "{{ state_attr(climatezone_r, 'current_temperature') | float(0) }}"
+      delta: "{{0.2 if (current_temp <= 19 ) else 0.1}}"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ states('climate.ne18') == 'unavailable'}}"
+            alias: Check of evohome unavailable is (false = available)
+        sequence:
+          - if:
+              - condition: and
+                conditions:
+                  - alias: Time between firstrun and lastrun
+                    condition: template
+                    value_template: "{{ today_at(firstrun) <= now() <= (today_at(lastrun))}}"
+                  - alias: "Not equal to permanent "
+                    condition: not
+                    conditions:
+                      - condition: template
+                        value_template: >-
+                          {{is_state_attr(climatezone,'preset_mode','permanent')}}
+            then:
+              - action: ramses_cc.set_zone_mode
+                metadata: {}
+                data:
+                  mode: temporary_override
+                  entity_id: climate.{{ramseszone}}
+                  setpoint: >-
+                    {{ min(max_temp | float, max((current_temp+delta) | float,
+                    (actual_temp+delta) | float) ) }} 
+                  duration:
+                    hours: 0
+                    minutes: 20
+                    seconds: 0
+            alias: Set temperature via ramses_cc
+          - if:
+              - condition: and
+                conditions:
+                  - alias: Time after lastrun
+                    condition: template
+                    value_template: "{{ now() > (today_at(lastrun))}}"
+                  - condition: template
+                    value_template: "{{is_state_attr(climatezone_r,'preset_mode','temporary')}}"
+            then:
+              - action: ramses_cc.reset_zone_mode
+                metadata: {}
+                data:
+                  entity_id: climate.{{ramseszone}}
+            alias: Clear temporary via ramses_cc
+        alias: Use ramses_cc if evohome is unavailable
+    default:
+      - if:
+          - condition: and
+            conditions:
+              - alias: Time between firstrun and lastrun
+                condition: template
+                value_template: "{{ today_at(firstrun) <= now() <= (today_at(lastrun))}}"
+              - alias: "Not equal to permanent "
+                condition: not
+                conditions:
+                  - condition: template
+                    value_template: "{{is_state_attr(climatezone,'preset_mode','permanent')}}"
+        then:
+          - delay:
+              hours: 0
+              minutes: "{{ wait_evo}}"
+              seconds: 0
+              milliseconds: 0
+          - data:
+              setpoint: >-
+                {{ min(max_temp | float, max((current_temp+delta) | float,
+                (actual_temp+delta) | float) ) }}
+              duration: "00:20:00"
+              entity_id: climate.{{evozone}}
+            action: evohome.set_zone_override
+            alias: >-
+              Actie uitvoeren 'Honeywell Total Connect Comfort (Europe): Set
+              zone override' on evozone for 20 minutes. If automation fails,
+              returns to Evohome schedule.
+            enabled: true
+        alias: set temperature via evohome
+      - if:
+          - condition: and
+            conditions:
+              - alias: Time after lastrun
+                condition: template
+                value_template: "{{ now() > (today_at(lastrun))}}"
+              - condition: template
+                value_template: "{{is_state_attr(climatezone,'preset_mode','temporary')}}"
+        then:
+          - action: evohome.clear_zone_override
+            data:
+              entity_id: climate.{{evozone}}
+        alias: clear temporary via evohome
+  - if:
+      - condition: and
+        conditions:
+          - condition: template
+            value_template: "{{  (now() | as_timestamp > manual_until | as_timestamp ) }}"
+            alias: now later than manual time
+          - condition: template
+            value_template: "{{ (states(manual_temp) | float != 5) }}"
+            alias: manual temp <> 5
+    then:
+      - action: input_number.set_value
+        metadata: {}
+        data:
+          value: 5
+        target:
+          entity_id: "{{manual_temp}}"
+    alias: reset manual temperature
+mode: single
