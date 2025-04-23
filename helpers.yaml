@@ -1,0 +1,17 @@
+#these helpers are needed for the automaton to overrule the automation. 
+#The automation wil be overruled if the manual_temp > 5 degrees , until the time set in maual time
+#These helpers are needed for every room to be controlled by an automation
+ input_number:
+  woonkamer_temp_manual:
+     name: Woonkamer temp manual
+     unit_of_measurement: "Cº"
+     step: 0.1
+     min: 5
+     max: 25
+     mode: box
+
+input_datetime:
+  woonkamer_manual_time:
+    name: Woonkamer manual until time
+    has_date: true
+    has_time: true
