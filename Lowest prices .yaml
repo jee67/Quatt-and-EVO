@@ -1,0 +1,16 @@
+# AIO energiemanagement
+# more info on https://github.com/kotope/aio_energy_management
+# change the nordpool_entity to your sensor
+aio_energy_management:
+      - nordpool_entity: sensor.nordpool_kwh_nl_eur_3_10_021
+        unique_id: heatpump_low_cost
+        name: Heatpump lage kosten
+        first_hour: 5
+        last_hour: 20
+        starting_today: false
+        number_of_hours: 5
+        sequential: false
+        failsafe_starting_hour: 1
+  calendar:
+    name: Battery charge Management
+    unique_id: battery_charging_calendar
